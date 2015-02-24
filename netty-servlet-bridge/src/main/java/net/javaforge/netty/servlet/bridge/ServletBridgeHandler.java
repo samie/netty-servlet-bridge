@@ -102,7 +102,7 @@ public class ServletBridgeHandler extends IdleStateHandler {
         if (e instanceof HttpRequest) {
             HttpRequest request = (HttpRequest) e;
 
-            String uri = request.uri();
+            String uri = request.getUri();
 
             if (uri.startsWith(uriPrefix)) {
                 if (HttpHeaders.is100ContinueExpected(request)) {
@@ -168,12 +168,12 @@ public class ServletBridgeHandler extends IdleStateHandler {
 
     protected void handleStaticResourceRequest(ChannelHandlerContext ctx,
                                                HttpRequest request) throws Exception {
-        if (request.method() != GET) {
+        if (request.getMethod() != GET) {
             sendError(ctx, METHOD_NOT_ALLOWED);
             return;
         }
 
-        String uri = Utils.sanitizeUri(request.uri());
+        String uri = Utils.sanitizeUri(request.getUri());
         final String path = (uri != null ? ServletBridgeWebapp.get()
                 .getStaticResourcesFolder().getAbsolutePath()
                 + File.separator + uri : null);

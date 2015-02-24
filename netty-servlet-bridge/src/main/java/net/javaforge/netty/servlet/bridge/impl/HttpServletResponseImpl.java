@@ -99,7 +99,7 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     @Override
     public void sendRedirect(String location) throws IOException {
         setStatus(SC_FOUND);
-        setHeader(LOCATION, location);
+        setHeader(LOCATION.toString(), location);
     }
 
     @Override

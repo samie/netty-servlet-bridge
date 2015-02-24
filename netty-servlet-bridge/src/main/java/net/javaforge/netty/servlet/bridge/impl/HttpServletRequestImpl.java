@@ -145,7 +145,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getMethod() {
-        return this.originalRequest.method().name();
+        return this.originalRequest.getMethod().name();
     }
 
     @Override
@@ -398,7 +398,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getAuthType() {
-        return getHeader(WWW_AUTHENTICATE);
+        return getHeader(WWW_AUTHENTICATE.toString());
     }
 
     @Override
@@ -409,7 +409,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getRemoteUser() {
-        return getHeader(AUTHORIZATION);
+        return getHeader(AUTHORIZATION.toString());
     }
 
     @Override
