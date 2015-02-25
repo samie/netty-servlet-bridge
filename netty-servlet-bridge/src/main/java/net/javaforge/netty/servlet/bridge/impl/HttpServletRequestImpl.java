@@ -13,7 +13,6 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-
 package net.javaforge.netty.servlet.bridge.impl;
 
 import io.netty.handler.codec.http.*;
@@ -37,6 +36,12 @@ import java.security.Principal;
 import java.util.*;
 
 import static io.netty.handler.codec.http.HttpHeaders.Names.*;
+import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder;
+import io.netty.handler.codec.http.multipart.InterfaceHttpData;
+import io.netty.handler.codec.http.multipart.MixedAttribute;
+import io.netty.util.Attribute;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @SuppressWarnings("unchecked")
 public class HttpServletRequestImpl implements HttpServletRequest {
@@ -58,8 +63,10 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     private Principal userPrincipal;
 
 //    private ServerCookieDecoder cookieDecoder = new ServerCookieDecoder();
-
     private String characterEncoding;
+    private boolean parametersProcessed;
+    private HttpPostRequestDecoder postDecoder;
+    private Map<String, List<String>> parameterMap;
 
     public HttpServletRequestImpl(HttpRequest request, FilterChainImpl chain) {
         this.originalRequest = request;
@@ -71,6 +78,9 @@ public class HttpServletRequestImpl implements HttpServletRequest {
         }
         this.reader = new BufferedReader(new InputStreamReader(inputStream));
         this.queryStringDecoder = new QueryStringDecoder(request.getUri());
+        if (request.getMethod() == HttpMethod.POST) {
+            this.postDecoder = new HttpPostRequestDecoder(request);
+        }
         this.uriParser = new URIParser(chain);
         this.uriParser.parse(request.getUri());
         this.characterEncoding = Utils
@@ -117,8 +127,9 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     @Override
     public long getDateHeader(String name) {
         String longVal = getHeader(name);
-        if (longVal == null)
+        if (longVal == null) {
             return -1;
+        }
 
         return Long.parseLong(longVal);
     }
@@ -167,7 +178,6 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
         // String servletPath = req.getServletPath ();
         // String pathInfo = req.getPathInfo ();
-
         url.append(scheme); // http, https
         url.append("://");
         url.append(this.getServerName());
@@ -212,21 +222,46 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public Map getParameterMap() {
-        return this.queryStringDecoder.parameters();
+    public Map<String, List<String>> getParameterMap() {
+        if (parameterMap == null) {
+            parameterMap = new HashMap<String, List<String>>(this.queryStringDecoder.parameters());
+            if (originalRequest.getMethod() == HttpMethod.POST) {
+                List<InterfaceHttpData> datas = postDecoder.getBodyHttpDatas();
+                for (InterfaceHttpData data : datas) {
+                    if (data.getHttpDataType() == InterfaceHttpData.HttpDataType.Attribute) {
+                        try {
+                            String attr = null;
+                            if (data instanceof MixedAttribute) {
+                                attr = ((MixedAttribute) data).getString();
+                            } else if (data instanceof Attribute) {
+                                attr = "" + ((Attribute) data).get();
+                            } 
+                            //TODO: do we have to handle multiple values here
+                            List<String> values = new ArrayList<String>(1);
+                            values.add(attr); 
+                            parameterMap.put(data.getName(), values);
+                        } catch (IOException ex) {
+                            Logger.getLogger(HttpServletRequestImpl.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }
+        }
+        return this.parameterMap;
     }
 
     @Override
     public Enumeration getParameterNames() {
-        return Utils.enumerationFromKeys(this.queryStringDecoder
-                .parameters());
+        return Utils.enumerationFromKeys(getParameterMap());
     }
 
     @Override
-    public String[] getParameterValues(String name) {
-        List<String> values = this.queryStringDecoder.parameters().get(name);
-        if (values == null || values.isEmpty())
+    public String[] getParameterValues(String name
+    ) {
+        List<String> values = getParameterMap().get(name);
+        if (values == null || values.isEmpty()) {
             return null;
+        }
         return values.toArray(new String[values.size()]);
     }
 
@@ -236,9 +271,11 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public Object getAttribute(String name) {
-        if (attributes != null)
+    public Object getAttribute(String name
+    ) {
+        if (attributes != null) {
             return this.attributes.get(name);
+        }
 
         return null;
     }
@@ -249,15 +286,19 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public void removeAttribute(String name) {
-        if (this.attributes != null)
+    public void removeAttribute(String name
+    ) {
+        if (this.attributes != null) {
             this.attributes.remove(name);
+        }
     }
 
     @Override
-    public void setAttribute(String name, Object o) {
-        if (this.attributes == null)
+    public void setAttribute(String name, Object o
+    ) {
+        if (this.attributes == null) {
             this.attributes = new HashMap<String, Object>();
+        }
 
         this.attributes.put(name, o);
     }
@@ -280,7 +321,8 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public HttpSession getSession(boolean create) {
+    public HttpSession getSession(boolean create
+    ) {
         HttpSession session = HttpSessionThreadLocal.get();
         if (session == null && create) {
             session = HttpSessionThreadLocal.getOrCreate();
@@ -338,8 +380,9 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     @Override
     public String getServletPath() {
         String servletPath = this.uriParser.getServletPath();
-        if (servletPath.equals("/"))
+        if (servletPath.equals("/")) {
             return "";
+        }
 
         return servletPath;
     }
@@ -436,21 +479,32 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public boolean isUserInRole(String role) {
+    public boolean isUserInRole(String role
+    ) {
         throw new IllegalStateException(
                 "Method 'isUserInRole' not yet implemented!");
     }
 
     @Override
-    public String getRealPath(String path) {
+    public String getRealPath(String path
+    ) {
         throw new IllegalStateException(
                 "Method 'getRealPath' not yet implemented!");
     }
 
     @Override
-    public RequestDispatcher getRequestDispatcher(String path) {
+    public RequestDispatcher getRequestDispatcher(String path
+    ) {
         throw new IllegalStateException(
                 "Method 'getRequestDispatcher' not yet implemented!");
+    }
+
+    private void handleQueryParameters() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    private void handlePostParameters() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
 }
